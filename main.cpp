@@ -27,13 +27,17 @@ std::vector<double> divide_axis(long n, double h) {
     return result;
 }
 
-Grid<Point> make_points_grid(const std::vector<double> &axis_points) {
+Grid<Point> make_points_grid(
+        const std::vector<double> &axis_points_x,
+        const std::vector<double> &axis_points_y,
+        const std::vector<double> &axis_points_z
+) {
     std::vector<std::vector<std::vector<Point> > > result;
-    for (double x_axi: axis_points) {
+    for (double x_axi: axis_points_x) {
         std::vector<std::vector<Point> > yz_plane;
-        for (double y_axi: axis_points) {
+        for (double y_axi: axis_points_y) {
             std::vector<Point> z_line;
-            for (double z_axi: axis_points) {
+            for (double z_axi: axis_points_z) {
                 z_line.emplace_back(x_axi, y_axi, z_axi);
             }
             yz_plane.push_back(z_line);
@@ -69,36 +73,63 @@ void print_points(const Grid<Point> &points_grid) {
 // endregion helpers
 
 // region math functions
-double u_analytical(const Point &point, int t, double l, double a_t) {
-    return std::sin(3 * M_PI * point.x / l) * sin(2 * M_PI * point.y / l) * sin(2 * M_PI * point.z / l)
+double u_analytical(
+        const Point &point,
+        int t,
+        double lx, double ly, double lz,
+        double a_t
+) {
+    return std::sin(3 * M_PI * point.x / lx) * sin(2 * M_PI * point.y / ly) * sin(2 * M_PI * point.z / lz)
            * cos(a_t * (double) t + 4 * M_PI);
 }
 
-double phi(const Point &point, double l, double a_t) {
-    return u_analytical(point, 0, l, a_t);
+double phi(
+        const Point &point,
+        double lx, double ly, double lz,
+        double a_t
+) {
+    return u_analytical(point, 0, lx, ly, lz, a_t);
 }
 
-// TODO index out of range
-double laplassian(int i, int j, int k, const Grid<double> &prev_v, double h) {
+double laplassian(
+        int i, int j, int k,
+        const Grid<double> &prev_v,
+        double hx, double hy, double hz
+) {
     double result = 0;
 
-    result += prev_v[i - 1][j][k] - 2 * prev_v[i][j][k] + prev_v[i + 1][j][k];
-    result += prev_v[i][j - 1][k] - 2 * prev_v[i][j][k] + prev_v[i][j + 1][k];
-    result += prev_v[i][j][k - 1] - 2 * prev_v[i][j][k] + prev_v[i][j][k + 1];
+    auto n = prev_v.size();
+    result += (i == 0 || i == n - 1)
+              ? 0
+              : (prev_v[i - 1][j][k] - 2 * prev_v[i][j][k] + prev_v[i + 1][j][k]) / (hx * hx);
+    auto m = prev_v[i].size();
+    result += (j == 0 || j == m - 1)
+              ? 0
+              : (prev_v[i][j - 1][k] - 2 * prev_v[i][j][k] + prev_v[i][j + 1][k]) / (hy * hy);
+    auto t = prev_v[i][j].size();
+    result += (k == 0 || k == t - 1)
+              ? 0
+              : (prev_v[i][j][k - 1] - 2 * prev_v[i][j][k] + prev_v[i][j][k + 1]) / (hz * hz);
 
-    return result / (h * h);
+    return result;
 }
 // endregion math functions
 
 // region build values
-Grid<double> build_initial_prev_values_1(const Grid<Point> &points_grid, double l, double a_t) {
+Grid<double> build_initial_prev_values_1(
+        const Grid<Point> &points_grid,
+        double lx,
+        double ly,
+        double lz,
+        double a_t
+) {
     Grid<double> result;
     for (const auto &yz_plane: points_grid) {
         std::vector<std::vector<double> > yz_plane_values;
         for (const auto &z_line: yz_plane) {
             std::vector<double> z_line_values;
             for (auto point: z_line) {
-                z_line_values.push_back(phi(point, l, a_t));
+                z_line_values.push_back(phi(point, lx, ly, lz, a_t));
             }
             yz_plane_values.push_back(z_line_values);
         }
@@ -107,8 +138,11 @@ Grid<double> build_initial_prev_values_1(const Grid<Point> &points_grid, double 
     return result;
 }
 
-Grid<double>
-build_initial_prev_values_2(const Grid<Point> &points_grid, const Grid<double> &previous_values_1, double h) {
+Grid<double> build_initial_prev_values_2(
+        const Grid<Point> &points_grid,
+        const Grid<double> &previous_values_1,
+        double hx, double hy, double hz
+) {
     Grid<double> result;
     for (int i = 0; i < points_grid.size(); i++) {
         const auto &yz_plane = points_grid[i];
@@ -118,7 +152,7 @@ build_initial_prev_values_2(const Grid<Point> &points_grid, const Grid<double> &
             std::vector<double> z_line_values;
             for (int k = 0; k < z_line.size(); k++) {
                 z_line_values.push_back(previous_values_1[i][j][k] +
-                                        0.5 * laplassian(i, j, k, previous_values_1, h));
+                                        0.5 * laplassian(i, j, k, previous_values_1, hx, hy, hz));
             }
             yz_plane_values.push_back(z_line_values);
         }
@@ -131,7 +165,7 @@ Grid<double> build_current_values(
         const Grid<Point> &points_grid,
         const Grid<double> &previous_values_1,
         const Grid<double> &previous_values_2,
-        double h,
+        double hx, double hy, double hz,
         double t
 ) {
     Grid<double> result;
@@ -143,7 +177,7 @@ Grid<double> build_current_values(
             std::vector<double> z_line_values;
             for (int k = 0; k < z_line.size(); k++) {
                 z_line_values.push_back(
-                        (t * t) * laplassian(i, j, k, previous_values_2, h)
+                        (t * t) * laplassian(i, j, k, previous_values_2, hx, hy, hz)
                         + 2 * previous_values_2[i][j][k]
                         - previous_values_1[i][j][k]
                 );
@@ -157,35 +191,47 @@ Grid<double> build_current_values(
 // endregion build values
 
 int main(int argc, char *argv[]) {
-    if (argc < 3) {
-        std::cout << "Usage: ./main L n" << std::endl;
+    double lx, ly, lz;
+    long n;
+    if (argc == 3) {
+        lx = ly = lz = std::stod(argv[1]);
+        n = strtol(argv[2], nullptr, 10);
+    } else if (argc == 5) {
+        lx = std::stod(argv[1]);
+        ly = std::stod(argv[2]);
+        lz = std::stod(argv[3]);
+        n = strtol(argv[4], nullptr, 10);
+    } else {
+        std::cout << "Usage:" << std::endl << "\t./main Lx Ly Lz n" << std::endl << "\t./main L n" << std::endl;
         return 0;
     }
 
-    double l = std::stod(argv[1]);
-    long n = strtol(argv[2], nullptr, 10);
-    double h = l / (double) n;
+    double hx = lx / (double) n;
+    double hy = ly / (double) n;
+    double hz = lz / (double) n;
 
-    double l_2 = l * l;
-    double a_t = M_PI * std::sqrt(9 / l_2 + 4 / l_2 + 4 / l_2);
 
-    std::vector<double> axis_points = divide_axis(n, h);
-    Grid<Point> points_grid = make_points_grid(axis_points);
+    double a_t = M_PI * std::sqrt(9 / (lx * lx) + 4 / (ly * ly) + 4 / (lz * lz));
+
+    std::vector<double> axis_points_x = divide_axis(n, hx);
+    std::vector<double> axis_points_y = divide_axis(n, hy);
+    std::vector<double> axis_points_z = divide_axis(n, hz);
+    Grid<Point> points_grid = make_points_grid(axis_points_x, axis_points_y, axis_points_z);
 
     Grid<double> previous_values_1;
     Grid<double> previous_values_2;
     Grid<double> current_values;
     for (int t = 0; t <= MAX_T; t++) {
         if (t == 0) {
-            previous_values_1 = build_initial_prev_values_1(points_grid, l, a_t);
+            previous_values_1 = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t);
             continue;
         }
         if (t == 1) {
-            previous_values_2 = build_initial_prev_values_2(points_grid, previous_values_1, h);
+            previous_values_2 = build_initial_prev_values_2(points_grid, previous_values_1, hx, hy, hz);
             continue;
         }
 
-        current_values = build_current_values(points_grid, previous_values_1, previous_values_2, h, t);
+        current_values = build_current_values(points_grid, previous_values_1, previous_values_2, hx, hy, hz, t);
 
         previous_values_1 = previous_values_2;
         previous_values_2 = current_values;
