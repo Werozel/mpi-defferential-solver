@@ -1,6 +1,7 @@
 #include <iostream>
 #include "vector"
 #include "cmath"
+#include "mpi.h"
 
 #define MAX_T 20
 
@@ -191,6 +192,7 @@ Grid<double> build_current_values(
 // endregion build values
 
 int main(int argc, char *argv[]) {
+    // region init
     double lx, ly, lz;
     long n;
     if (argc == 3) {
@@ -210,6 +212,10 @@ int main(int argc, char *argv[]) {
     double hy = ly / (double) n;
     double hz = lz / (double) n;
 
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     double a_t = M_PI * std::sqrt(9 / (lx * lx) + 4 / (ly * ly) + 4 / (lz * lz));
 
@@ -217,6 +223,11 @@ int main(int argc, char *argv[]) {
     std::vector<double> axis_points_y = divide_axis(n, hy);
     std::vector<double> axis_points_z = divide_axis(n, hz);
     Grid<Point> points_grid = make_points_grid(axis_points_x, axis_points_y, axis_points_z);
+    // endregion init
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    double start_time = MPI_Wtime();
 
     Grid<double> previous_values_1;
     Grid<double> previous_values_2;
@@ -237,7 +248,16 @@ int main(int argc, char *argv[]) {
         previous_values_2 = current_values;
     }
 
-    print_values(current_values);
+    double end_time = MPI_Wtime();
+    if (rank == 0) {
+        std::cout << "Time: " << end_time - start_time << std::endl;
+    }
+
+    if (!rank) {
+        print_values(current_values);
+    }
+
+    MPI_Finalize();
 
     return 0;
 }
