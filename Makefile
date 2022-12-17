@@ -5,16 +5,16 @@ OUTPUT = main.o
 STDLIB_FLAG = -stdlib=libc++
 
 build:
-	g++ main.cpp -std=c++11 -o main
+	g++ ${TARGET} -std=c++11 -o ${OUTPUT}
 
 build-mpi:
 	mpicxx ${TARGET} -o ${OUTPUT}
 
 run-mpi:
-	mpirun -n 4 ${OUTPUT} 1 1 1 2
+	mpirun -n 1 ${OUTPUT} 12 12 12 4
 
 run:
-	./main 1 1 1 2
+	./main 12 12 12 4
 
 clean:
 	rm -f ${OUTPUT}

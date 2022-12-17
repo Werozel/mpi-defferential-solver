@@ -92,25 +92,54 @@ double phi(
     return u_analytical(point, 0, lx, ly, lz, a_t);
 }
 
-double laplassian(
+double plain_laplassian(
         int i, int j, int k,
-        const Grid<double> &prev_v,
+        const Grid<double> &curr_v,
+        const int curr_block_dims[3],
         double hx, double hy, double hz
 ) {
     double result = 0;
 
-    auto n = prev_v.size();
-    result += (i == 0 || i == n - 1)
-              ? 0
-              : (prev_v[i - 1][j][k] - 2 * prev_v[i][j][k] + prev_v[i + 1][j][k]) / (hx * hx);
-    auto m = prev_v[i].size();
-    result += (j == 0 || j == m - 1)
-              ? 0
-              : (prev_v[i][j - 1][k] - 2 * prev_v[i][j][k] + prev_v[i][j + 1][k]) / (hy * hy);
-    auto t = prev_v[i][j].size();
-    result += (k == 0 || k == t - 1)
-              ? 0
-              : (prev_v[i][j][k - 1] - 2 * prev_v[i][j][k] + prev_v[i][j][k + 1]) / (hz * hz);
+    result += (i == 0 || i < curr_block_dims[0] - 1) ? 0 : (curr_v[i + 1][j][k] - 2 * curr_v[i][j][k] + curr_v[i - 1][j][k]) / (hx * hx);
+    result += (j == 0 || j < curr_block_dims[1] - 1) ? 0 : (curr_v[i][j + 1][k] - 2 * curr_v[i][j][k] + curr_v[i][j - 1][k]) / (hy * hy);
+    result += (k == 0 || k < curr_block_dims[2] - 1) ? 0 : (curr_v[i][j][k + 1] - 2 * curr_v[i][j][k] + curr_v[i][j][k - 1]) / (hz * hz);
+
+    return result;
+}
+
+double laplassian(
+        int i, int j, int k,
+        const Grid<double> &curr_v,
+        const Grid<double> &prev_v,
+        const Grid<double> &next_v,
+        const int curr_block_dims[3],
+        double hx, double hy, double hz
+) {
+    double result = 0;
+
+    if (i == 0) {
+        result += (curr_v[i + 1][j][k] - 2 * curr_v[i][j][k] + prev_v[0][j][k]) / (hx * hx);
+    } else if (i == curr_block_dims[0] - 1) {
+        result += (next_v[0][j][k] - 2 * curr_v[i][j][k] + curr_v[i - 1][j][k]) / (hx * hx);
+    } else {
+        result += (curr_v[i + 1][j][k] - 2 * curr_v[i][j][k] + curr_v[i - 1][j][k]) / (hx * hx);
+    }
+
+    if (j == 0) {
+        result += (curr_v[i][j + 1][k] - 2 * curr_v[i][j][k] + prev_v[1][i][k]) / (hy * hy);
+    } else if (j == curr_block_dims[1] - 1) {
+        result += (next_v[1][i][k] - 2 * curr_v[i][j][k] + curr_v[i][j - 1][k]) / (hy * hy);
+    } else {
+        result += (curr_v[i][j + 1][k] - 2 * curr_v[i][j][k] + curr_v[i][j - 1][k]) / (hy * hy);
+    }
+
+    if (k == 0) {
+        result += (curr_v[i][j][k + 1] - 2 * curr_v[i][j][k] + prev_v[2][i][j]) / (hz * hz);
+    } else if (k == curr_block_dims[2] - 1) {
+        result += (next_v[2][i][j] - 2 * curr_v[i][j][k] + curr_v[i][j][k - 1]) / (hz * hz);
+    } else {
+        result += (curr_v[i][j][k + 1] - 2 * curr_v[i][j][k] + curr_v[i][j][k - 1]) / (hz * hz);
+    }
 
     return result;
 }
@@ -119,17 +148,19 @@ double laplassian(
 // region build values
 Grid<double> build_initial_prev_values_1(
         const Grid<Point> &points_grid,
-        double lx,
-        double ly,
-        double lz,
-        double a_t
+        double lx, double ly, double lz,
+        double a_t,
+        const int curr_block_dims[3]
 ) {
     Grid<double> result;
-    for (const auto &yz_plane: points_grid) {
+    for (int i = 0; i < curr_block_dims[0]; i++) {
+        const auto& yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
-        for (const auto &z_line: yz_plane) {
+        for (int j = 0; j < curr_block_dims[1]; j++) {
+            const auto &z_line = yz_plane[j];
             std::vector<double> z_line_values;
-            for (auto point: z_line) {
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                const auto &point = z_line[k];
                 z_line_values.push_back(phi(point, lx, ly, lz, a_t));
             }
             yz_plane_values.push_back(z_line_values);
@@ -141,47 +172,20 @@ Grid<double> build_initial_prev_values_1(
 
 Grid<double> build_initial_prev_values_2(
         const Grid<Point> &points_grid,
-        const Grid<double> &previous_values_1,
-        double hx, double hy, double hz
-) {
-    Grid<double> result;
-    for (int i = 0; i < points_grid.size(); i++) {
-        const auto &yz_plane = points_grid[i];
-        std::vector<std::vector<double> > yz_plane_values;
-        for (int j = 0; j < yz_plane.size(); j++) {
-            const auto &z_line = yz_plane[j];
-            std::vector<double> z_line_values;
-            for (int k = 0; k < z_line.size(); k++) {
-                z_line_values.push_back(previous_values_1[i][j][k] +
-                                        0.5 * laplassian(i, j, k, previous_values_1, hx, hy, hz));
-            }
-            yz_plane_values.push_back(z_line_values);
-        }
-        result.push_back(yz_plane_values);
-    }
-    return result;
-}
-
-Grid<double> build_current_values(
-        const Grid<Point> &points_grid,
-        const Grid<double> &previous_values_1,
-        const Grid<double> &previous_values_2,
+        const Grid<double> &curr_v,
         double hx, double hy, double hz,
-        double t
+        const int curr_block_dims[3]
 ) {
     Grid<double> result;
-    for (int i = 0; i < points_grid.size(); i++) {
+    for (int i = 0; i < curr_block_dims[0]; i++) {
         const auto &yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
-        for (int j = 0; j < yz_plane.size(); j++) {
+        for (int j = 0; j < curr_block_dims[1]; j++) {
             const auto &z_line = yz_plane[j];
             std::vector<double> z_line_values;
-            for (int k = 0; k < z_line.size(); k++) {
-                z_line_values.push_back(
-                        (t * t) * laplassian(i, j, k, previous_values_2, hx, hy, hz)
-                        + 2 * previous_values_2[i][j][k]
-                        - previous_values_1[i][j][k]
-                );
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                z_line_values.push_back(curr_v[i][j][k] +
+                                        0.5 * plain_laplassian(i, j, k, curr_v, curr_block_dims, hx, hy, hz));
             }
             yz_plane_values.push_back(z_line_values);
         }
@@ -194,14 +198,18 @@ Grid<double> build_analytical_values(
         const Grid<Point> &points_grid,
         int t,
         double lx, double ly, double lz,
-        double a_t
+        double a_t,
+        const int curr_block_dims[3]
 ) {
     Grid<double> result;
-    for (const auto &yz_plane: points_grid) {
+    for (int i = 0; i < curr_block_dims[0]; i++) {
+        const auto &yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
-        for (const auto &z_line: yz_plane) {
+        for (int j = 0; j < curr_block_dims[1]; j++) {
+            const auto &z_line = yz_plane[j];
             std::vector<double> z_line_values;
-            for (auto point: z_line) {
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                const auto &point = z_line[k];
                 z_line_values.push_back(u_analytical(point, t, lx, ly, lz, a_t));
             }
             yz_plane_values.push_back(z_line_values);
@@ -259,6 +267,22 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    MPI_Comm comm;
+    int dims[3] = {0, 0, 0}, periods[3] = {0, 0, 0}, coords[3];
+    MPI_Dims_create(size, 3, dims);
+    MPI_Cart_create(MPI_COMM_WORLD, 3, dims, periods, 0, &comm);
+    MPI_Cart_coords(comm, rank, 3, coords);
+
+    int curr_block_dims[3];
+    for (int i = 0; i < 3; ++i) {
+        curr_block_dims[i] = n / dims[i];
+        if (coords[i] == dims[i] - 1) {
+            curr_block_dims[i] += n % dims[i];
+        }
+    }
+
+    std::cout << "rank: " << rank << ", coords: " << coords[0] << ", " << coords[1] << ", " << coords[2] << std::endl;
+
     double a_t = M_PI * std::sqrt(9 / (lx * lx) + 4 / (ly * ly) + 4 / (lz * lz));
 
     std::vector<double> axis_points_x = divide_axis(n, hx);
@@ -267,50 +291,194 @@ int main(int argc, char *argv[]) {
     Grid<Point> points_grid = make_points_grid(axis_points_x, axis_points_y, axis_points_z);
     // endregion init
 
-    Grid<double> analytical_values = build_analytical_values(points_grid, 0, lx, ly, lz, a_t);
-
     double start_time = MPI_Wtime();
 
-    std::vector<Grid<double> > previous_values(MAX_T + 1);
-    for (int t = 0; t <= MAX_T; t++) {
-        MPI_Barrier(MPI_COMM_WORLD);
+    std::vector<Grid<double> > values(MAX_T + 1);
 
+    for (int t = 0; t <= MAX_T; t++) {
         if (t == 0) {
-            previous_values[0] = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t);
+            values[0] = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t, curr_block_dims);
             continue;
         }
         if (t == 1) {
-            previous_values[1] = build_initial_prev_values_2(
+            values[1] = build_initial_prev_values_2(
                     points_grid,
-                    previous_values[0],
-                    hx, hy, hz
+                    values[0],
+                    hx, hy, hz,
+                    curr_block_dims
             );
             continue;
         }
 
-        previous_values[t] = build_current_values(
-                points_grid,
-                previous_values[0],
-                previous_values[1],
-                hx, hy, hz,
-                t
+        long long max_number_of_values_x = curr_block_dims[1] + curr_block_dims[2];
+        double send_prev_values[max_number_of_values_x], send_next_values[max_number_of_values_x];
+
+        double rcv_prev_values[max_number_of_values_x], rcv_next_values[max_number_of_values_x];
+
+        // region send and receive x
+        for (int j = 0; j < curr_block_dims[1]; j++) {
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                send_prev_values[j * curr_block_dims[2] + k] = values[t - 1][0][j][k];
+                send_next_values[j * curr_block_dims[2] + k] = values[t - 1][curr_block_dims[0] - 1][j][k];
+            }
+        }
+        int scr_prev_rank, desc_prev_rank;
+        MPI_Cart_shift(comm, 0, -1, &scr_prev_rank, &desc_prev_rank);
+        MPI_Sendrecv(
+                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
+                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                comm, MPI_STATUS_IGNORE
         );
+
+        int src_next_rank, desc_next_rank;
+        MPI_Cart_shift(comm, 0, 1, &src_next_rank, &desc_next_rank);
+        MPI_Sendrecv(
+                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                comm, MPI_STATUS_IGNORE
+        );
+
+        // endregion send and receive x
+
+        // region send and receive y
+        for (int i = 0; i < curr_block_dims[0]; i++) {
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                send_prev_values[i * curr_block_dims[2] + k] = values[t - 1][i][0][k];
+                send_next_values[i * curr_block_dims[2] + k] = values[t - 1][i][curr_block_dims[1] - 1][k];
+            }
+        }
+
+        MPI_Cart_shift(comm, 1, -1, &scr_prev_rank, &desc_prev_rank);
+        MPI_Sendrecv(
+                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
+                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                comm, MPI_STATUS_IGNORE
+        );
+
+        MPI_Cart_shift(comm, 1, 1, &src_next_rank, &desc_next_rank);
+        MPI_Sendrecv(
+                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                comm, MPI_STATUS_IGNORE
+        );
+        // endregion send and receive y
+
+        // region send and receive z
+        for (int i = 0; i < curr_block_dims[0]; i++) {
+            for (int j = 0; j < curr_block_dims[1]; j++) {
+                send_prev_values[i * curr_block_dims[1] + j] = values[t - 1][i][j][0];
+                send_next_values[i * curr_block_dims[1] + j] = values[t - 1][i][j][curr_block_dims[2] - 1];
+            }
+        }
+
+        MPI_Cart_shift(comm, 2, -1, &scr_prev_rank, &desc_prev_rank);
+        MPI_Sendrecv(
+                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
+                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                comm, MPI_STATUS_IGNORE
+        );
+
+        MPI_Cart_shift(comm, 2, 1, &src_next_rank, &desc_next_rank);
+        MPI_Sendrecv(
+                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                comm, MPI_STATUS_IGNORE
+        );
+        // endregion send and receive z
+
+        // region convert array to vector
+        Grid<double> prev_values, next_values;
+
+        std::vector<std::vector<double> > prev_x_values, next_x_values;
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < curr_block_dims[1]; j++) {
+                std::vector<double> prev_row;
+                std::vector<double> next_row;
+                for (int k = 0; k < curr_block_dims[2]; k++) {
+                    prev_row.push_back(rcv_prev_values[j * curr_block_dims[2] + k]);
+                    next_row.push_back(rcv_next_values[j * curr_block_dims[2] + k]);
+                }
+                prev_x_values.push_back(prev_row);
+                next_x_values.push_back(next_row);
+            }
+        }
+        prev_values.push_back(prev_x_values);
+        next_values.push_back(next_x_values);
+
+        std::vector<std::vector<double> > prev_y_values, next_y_values;
+        for (int i = 0; i < curr_block_dims[0]; i++) {
+            for (int j = 0; j < 3; j++) {
+                std::vector<double> prev_row;
+                std::vector<double> next_row;
+                for (int k = 0; k < curr_block_dims[2]; k++) {
+                    prev_row.push_back(rcv_prev_values[i * curr_block_dims[2] + k]);
+                    next_row.push_back(rcv_next_values[i * curr_block_dims[2] + k]);
+                }
+                prev_y_values.push_back(prev_row);
+                next_y_values.push_back(next_row);
+            }
+        }
+        prev_values.push_back(prev_y_values);
+        next_values.push_back(next_y_values);
+
+        std::vector<std::vector<double> > prev_z_values, next_z_values;
+        for (int i = 0; i < curr_block_dims[0]; i++) {
+            for (int j = 0; j < curr_block_dims[1]; j++) {
+                std::vector<double> prev_row;
+                std::vector<double> next_row;
+                for (int k = 0; k < 3; k++) {
+                    prev_row.push_back(rcv_prev_values[i * curr_block_dims[1] + j]);
+                    next_row.push_back(rcv_next_values[i * curr_block_dims[1] + j]);
+                }
+                prev_z_values.push_back(prev_row);
+                next_z_values.push_back(next_row);
+            }
+        }
+        prev_values.push_back(prev_z_values);
+        next_values.push_back(next_z_values);
+        // endregion convert array to vector
+
+        Grid<double> result;
+        for (int i = 0; i < curr_block_dims[0]; i++) {
+            const auto &yz_plane = points_grid[i];
+            std::vector<std::vector<double> > yz_plane_values;
+            for (int j = 0; j < curr_block_dims[1]; j++) {
+                const auto &z_line = yz_plane[j];
+                std::vector<double> z_line_values;
+                for (int k = 0; k < curr_block_dims[2]; k++) {
+                    z_line_values.push_back(
+                            (t * t) *
+                            laplassian(i, j, k, values[t - 1], prev_values, next_values, curr_block_dims, hx, hy, hz)
+                            + 2 * values[t - 2][i][j][k]
+                            - values[t - 1][i][j][k]
+                    );
+                }
+                yz_plane_values.push_back(z_line_values);
+            }
+            result.push_back(yz_plane_values);
+        }
+
+        values[t] = result;
     }
 
-    double end_time = MPI_Wtime();
+    double end_time = MPI_Wtime() - start_time;
+    double max_time;
+    MPI_Reduce(&end_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     if (rank == 0) {
-        std::cout << "Time: " << end_time - start_time << std::endl;
+        std::cout << "Time: " << max_time << std::endl;
     }
 
     std::vector<Grid<double> > analytical_values_vector(MAX_T + 1);
     for (int t = 0; t <= MAX_T; t++) {
-        analytical_values_vector[t] = build_analytical_values(points_grid, t, lx, ly, lz, a_t);
+        analytical_values_vector[t] = build_analytical_values(points_grid, t, lx, ly, lz, a_t, curr_block_dims);
     }
 
+    double diff = get_diff(values[MAX_T], analytical_values_vector[MAX_T]);
+    double max_diff;
+    MPI_Reduce(&diff, &max_diff, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
     if (!rank) {
-        print_values(previous_values[MAX_T]);
-        print_values(analytical_values_vector[MAX_T]);
-        std::cout << "Diff: " << get_diff(previous_values[MAX_T], analytical_values_vector[MAX_T]) << std::endl;
+        std::cout << "Diff: " << max_diff << std::endl;
     }
 
     MPI_Finalize();
