@@ -189,6 +189,48 @@ Grid<double> build_current_values(
     }
     return result;
 }
+
+Grid<double> build_analytical_values(
+        const Grid<Point> &points_grid,
+        int t,
+        double lx, double ly, double lz,
+        double a_t
+) {
+    Grid<double> result;
+    for (const auto &yz_plane: points_grid) {
+        std::vector<std::vector<double> > yz_plane_values;
+        for (const auto &z_line: yz_plane) {
+            std::vector<double> z_line_values;
+            for (auto point: z_line) {
+                z_line_values.push_back(u_analytical(point, t, lx, ly, lz, a_t));
+            }
+            yz_plane_values.push_back(z_line_values);
+        }
+        result.push_back(yz_plane_values);
+    }
+    return result;
+}
+
+double get_diff(
+        const Grid<double> &values_1,
+        const Grid<double> &values_2
+) {
+    double result = 0;
+    int count = 0;
+    for (int i = 0; i < values_1.size(); i++) {
+        const auto &yz_plane_1 = values_1[i];
+        const auto &yz_plane_2 = values_2[i];
+        for (int j = 0; j < yz_plane_1.size(); j++) {
+            const auto &z_line_1 = yz_plane_1[j];
+            const auto &z_line_2 = yz_plane_2[j];
+            for (int k = 0; k < z_line_1.size(); k++) {
+                result += std::abs(z_line_1[k] - z_line_2[k]);
+                count++;
+            }
+        }
+    }
+    return result / count;
+}
 // endregion build values
 
 int main(int argc, char *argv[]) {
@@ -225,27 +267,34 @@ int main(int argc, char *argv[]) {
     Grid<Point> points_grid = make_points_grid(axis_points_x, axis_points_y, axis_points_z);
     // endregion init
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    Grid<double> analytical_values = build_analytical_values(points_grid, 0, lx, ly, lz, a_t);
 
     double start_time = MPI_Wtime();
 
-    Grid<double> previous_values_1;
-    Grid<double> previous_values_2;
-    Grid<double> current_values;
+    std::vector<Grid<double> > previous_values(MAX_T + 1);
     for (int t = 0; t <= MAX_T; t++) {
+        MPI_Barrier(MPI_COMM_WORLD);
+
         if (t == 0) {
-            previous_values_1 = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t);
+            previous_values[0] = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t);
             continue;
         }
         if (t == 1) {
-            previous_values_2 = build_initial_prev_values_2(points_grid, previous_values_1, hx, hy, hz);
+            previous_values[1] = build_initial_prev_values_2(
+                    points_grid,
+                    previous_values[0],
+                    hx, hy, hz
+            );
             continue;
         }
 
-        current_values = build_current_values(points_grid, previous_values_1, previous_values_2, hx, hy, hz, t);
-
-        previous_values_1 = previous_values_2;
-        previous_values_2 = current_values;
+        previous_values[t] = build_current_values(
+                points_grid,
+                previous_values[0],
+                previous_values[1],
+                hx, hy, hz,
+                t
+        );
     }
 
     double end_time = MPI_Wtime();
@@ -253,8 +302,15 @@ int main(int argc, char *argv[]) {
         std::cout << "Time: " << end_time - start_time << std::endl;
     }
 
+    std::vector<Grid<double> > analytical_values_vector(MAX_T + 1);
+    for (int t = 0; t <= MAX_T; t++) {
+        analytical_values_vector[t] = build_analytical_values(points_grid, t, lx, ly, lz, a_t);
+    }
+
     if (!rank) {
-        print_values(current_values);
+        print_values(previous_values[MAX_T]);
+        print_values(analytical_values_vector[MAX_T]);
+        std::cout << "Diff: " << get_diff(previous_values[MAX_T], analytical_values_vector[MAX_T]) << std::endl;
     }
 
     MPI_Finalize();

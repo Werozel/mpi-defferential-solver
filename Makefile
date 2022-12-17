@@ -2,8 +2,10 @@
 TARGET = main.cpp
 OUTPUT = main.o
 
+STDLIB_FLAG = -stdlib=libc++
+
 build:
-	g++ main.cpp -std=c++11 -stdlib=libc++ -o main
+	g++ main.cpp -std=c++11 -o main
 
 build-mpi:
 	mpicxx ${TARGET} -o ${OUTPUT}
