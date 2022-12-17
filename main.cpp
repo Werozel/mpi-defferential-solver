@@ -100,9 +100,9 @@ double plain_laplassian(
 ) {
     double result = 0;
 
-    result += (i == 0 || i < curr_block_dims[0] - 1) ? 0 : (curr_v[i + 1][j][k] - 2 * curr_v[i][j][k] + curr_v[i - 1][j][k]) / (hx * hx);
-    result += (j == 0 || j < curr_block_dims[1] - 1) ? 0 : (curr_v[i][j + 1][k] - 2 * curr_v[i][j][k] + curr_v[i][j - 1][k]) / (hy * hy);
-    result += (k == 0 || k < curr_block_dims[2] - 1) ? 0 : (curr_v[i][j][k + 1] - 2 * curr_v[i][j][k] + curr_v[i][j][k - 1]) / (hz * hz);
+    result += (i == 0 || i == curr_block_dims[0] - 1) ? 0 : (curr_v[i + 1][j][k] - 2 * curr_v[i][j][k] + curr_v[i - 1][j][k]) / (hx * hx);
+    result += (j == 0 || j == curr_block_dims[1] - 1) ? 0 : (curr_v[i][j + 1][k] - 2 * curr_v[i][j][k] + curr_v[i][j - 1][k]) / (hy * hy);
+    result += (k == 0 || k == curr_block_dims[2] - 1) ? 0 : (curr_v[i][j][k + 1] - 2 * curr_v[i][j][k] + curr_v[i][j][k - 1]) / (hz * hz);
 
     return result;
 }
@@ -178,10 +178,8 @@ Grid<double> build_initial_prev_values_2(
 ) {
     Grid<double> result;
     for (int i = 0; i < curr_block_dims[0]; i++) {
-        const auto &yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
         for (int j = 0; j < curr_block_dims[1]; j++) {
-            const auto &z_line = yz_plane[j];
             std::vector<double> z_line_values;
             for (int k = 0; k < curr_block_dims[2]; k++) {
                 z_line_values.push_back(curr_v[i][j][k] +
@@ -273,6 +271,10 @@ int main(int argc, char *argv[]) {
     MPI_Cart_create(MPI_COMM_WORLD, 3, dims, periods, 0, &comm);
     MPI_Cart_coords(comm, rank, 3, coords);
 
+    if (rank == 0) {
+        std::cout << "dims = " << dims[0] << " " << dims[1] << " " << dims[2] << std::endl;
+    }
+
     int curr_block_dims[3];
     for (int i = 0; i < 3; ++i) {
         curr_block_dims[i] = n / dims[i];
@@ -280,6 +282,8 @@ int main(int argc, char *argv[]) {
             curr_block_dims[i] += n % dims[i];
         }
     }
+    std::cout << "curr_block_dims = " << curr_block_dims[0] << " " << curr_block_dims[1] << " " << curr_block_dims[2]
+              << std::endl;
 
     std::cout << "rank: " << rank << ", coords: " << coords[0] << ", " << coords[1] << ", " << coords[2] << std::endl;
 
