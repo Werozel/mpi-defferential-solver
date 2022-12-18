@@ -11,7 +11,7 @@ build-mpi:
 	mpicxx ${TARGET} -o ${OUTPUT}
 
 run-mpi:
-	mpirun -n 4 ${OUTPUT} 1 128
+	mpirun -n 1 ${OUTPUT} 1 128
 
 run:
 	./main 12 12 12 4

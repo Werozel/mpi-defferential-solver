@@ -314,78 +314,85 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        long long max_number_of_values_x = curr_block_dims[1] + curr_block_dims[2];
-        double send_prev_values[max_number_of_values_x], send_next_values[max_number_of_values_x];
-
-        double rcv_prev_values[max_number_of_values_x], rcv_next_values[max_number_of_values_x];
-
         // region send and receive x
+        long long max_number_of_values_x = curr_block_dims[1] * curr_block_dims[2];
+        double send_prev_values_x[max_number_of_values_x], send_next_values_x[max_number_of_values_x];
+        double rcv_prev_values_x[max_number_of_values_x], rcv_next_values_x[max_number_of_values_x];
+
         for (int j = 0; j < curr_block_dims[1]; j++) {
             for (int k = 0; k < curr_block_dims[2]; k++) {
-                send_prev_values[j * curr_block_dims[2] + k] = values[t - 1][0][j][k];
-                send_next_values[j * curr_block_dims[2] + k] = values[t - 1][curr_block_dims[0] - 1][j][k];
+                send_prev_values_x[j * curr_block_dims[2] + k] = values[t - 1][0][j][k];
+                send_next_values_x[j * curr_block_dims[2] + k] = values[t - 1][curr_block_dims[0] - 1][j][k];
             }
         }
-        int scr_prev_rank, desc_prev_rank;
-        MPI_Cart_shift(comm, 0, -1, &scr_prev_rank, &desc_prev_rank);
+        int src_prev_rank, dest_prev_rank;
+        MPI_Cart_shift(comm, 0, -1, &src_prev_rank, &dest_prev_rank);
         MPI_Sendrecv(
-                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
-                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                send_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                rcv_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
 
         int src_next_rank, desc_next_rank;
         MPI_Cart_shift(comm, 0, 1, &src_next_rank, &desc_next_rank);
         MPI_Sendrecv(
-                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                send_next_values_x, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values_x, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
 
         // endregion send and receive x
 
         // region send and receive y
+        long long max_number_of_values_y = curr_block_dims[0] * curr_block_dims[2];
+        double send_prev_values_y[max_number_of_values_y], send_next_values_y[max_number_of_values_y];
+        double rcv_prev_values_y[max_number_of_values_y], rcv_next_values_y[max_number_of_values_y];
+
         for (int i = 0; i < curr_block_dims[0]; i++) {
             for (int k = 0; k < curr_block_dims[2]; k++) {
-                send_prev_values[i * curr_block_dims[2] + k] = values[t - 1][i][0][k];
-                send_next_values[i * curr_block_dims[2] + k] = values[t - 1][i][curr_block_dims[1] - 1][k];
+                send_prev_values_y[i * curr_block_dims[2] + k] = values[t - 1][i][0][k];
+                send_next_values_y[i * curr_block_dims[2] + k] = values[t - 1][i][curr_block_dims[1] - 1][k];
             }
         }
 
-        MPI_Cart_shift(comm, 1, -1, &scr_prev_rank, &desc_prev_rank);
+        MPI_Cart_shift(comm, 1, -1, &src_prev_rank, &dest_prev_rank);
         MPI_Sendrecv(
-                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
-                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                send_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                rcv_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
 
         MPI_Cart_shift(comm, 1, 1, &src_next_rank, &desc_next_rank);
         MPI_Sendrecv(
-                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                send_next_values_y, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values_y, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
         // endregion send and receive y
 
         // region send and receive z
+        long long max_number_of_values_z = curr_block_dims[0] * curr_block_dims[1];
+        double send_prev_values_z[max_number_of_values_z], send_next_values_z[max_number_of_values_z];
+        double rcv_prev_values_z[max_number_of_values_z], rcv_next_values_z[max_number_of_values_z];
+
         for (int i = 0; i < curr_block_dims[0]; i++) {
             for (int j = 0; j < curr_block_dims[1]; j++) {
-                send_prev_values[i * curr_block_dims[1] + j] = values[t - 1][i][j][0];
-                send_next_values[i * curr_block_dims[1] + j] = values[t - 1][i][j][curr_block_dims[2] - 1];
+                send_prev_values_z[i * curr_block_dims[1] + j] = values[t - 1][i][j][0];
+                send_next_values_z[i * curr_block_dims[1] + j] = values[t - 1][i][j][curr_block_dims[2] - 1];
             }
         }
 
-        MPI_Cart_shift(comm, 2, -1, &scr_prev_rank, &desc_prev_rank);
+        MPI_Cart_shift(comm, 2, -1, &src_prev_rank, &dest_prev_rank);
         MPI_Sendrecv(
-                send_prev_values, max_number_of_values_x, MPI_DOUBLE, scr_prev_rank, 0,
-                rcv_prev_values, max_number_of_values_x, MPI_DOUBLE, desc_prev_rank, 0,
+                send_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                rcv_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
 
         MPI_Cart_shift(comm, 2, 1, &src_next_rank, &desc_next_rank);
         MPI_Sendrecv(
-                send_next_values, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values, max_number_of_values_x, MPI_DOUBLE, src_next_rank, 0,
+                send_next_values_z, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
+                rcv_next_values_z, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
                 comm, MPI_STATUS_IGNORE
         );
         // endregion send and receive z
@@ -394,17 +401,15 @@ int main(int argc, char *argv[]) {
         Grid<double> prev_values, next_values;
 
         std::vector<std::vector<double> > prev_x_values, next_x_values;
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < curr_block_dims[1]; j++) {
-                std::vector<double> prev_row;
-                std::vector<double> next_row;
-                for (int k = 0; k < curr_block_dims[2]; k++) {
-                    prev_row.push_back(rcv_prev_values[j * curr_block_dims[2] + k]);
-                    next_row.push_back(rcv_next_values[j * curr_block_dims[2] + k]);
-                }
-                prev_x_values.push_back(prev_row);
-                next_x_values.push_back(next_row);
+        for (int j = 0; j < curr_block_dims[1]; j++) {
+            std::vector<double> prev_row;
+            std::vector<double> next_row;
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                prev_row.push_back(rcv_prev_values_x[j * curr_block_dims[2] + k]);
+                next_row.push_back(rcv_next_values_x[j * curr_block_dims[2] + k]);
             }
+            prev_x_values.push_back(prev_row);
+            next_x_values.push_back(next_row);
         }
         prev_values.push_back(prev_x_values);
         next_values.push_back(next_x_values);
@@ -415,8 +420,8 @@ int main(int argc, char *argv[]) {
                 std::vector<double> prev_row;
                 std::vector<double> next_row;
                 for (int k = 0; k < curr_block_dims[2]; k++) {
-                    prev_row.push_back(rcv_prev_values[i * curr_block_dims[2] + k]);
-                    next_row.push_back(rcv_next_values[i * curr_block_dims[2] + k]);
+                    prev_row.push_back(rcv_prev_values_y[i * curr_block_dims[2] + k]);
+                    next_row.push_back(rcv_next_values_y[i * curr_block_dims[2] + k]);
                 }
                 prev_y_values.push_back(prev_row);
                 next_y_values.push_back(next_row);
@@ -431,8 +436,8 @@ int main(int argc, char *argv[]) {
                 std::vector<double> prev_row;
                 std::vector<double> next_row;
                 for (int k = 0; k < 3; k++) {
-                    prev_row.push_back(rcv_prev_values[i * curr_block_dims[1] + j]);
-                    next_row.push_back(rcv_next_values[i * curr_block_dims[1] + j]);
+                    prev_row.push_back(rcv_prev_values_z[i * curr_block_dims[1] + j]);
+                    next_row.push_back(rcv_next_values_z[i * curr_block_dims[1] + j]);
                 }
                 prev_z_values.push_back(prev_row);
                 next_z_values.push_back(next_row);
