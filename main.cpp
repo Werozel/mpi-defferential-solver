@@ -76,12 +76,12 @@ void print_points(const Grid<Point> &points_grid) {
 // region math functions
 double u_analytical(
         const Point &point,
-        int t,
+        double tau,
         double lx, double ly, double lz,
         double a_t
 ) {
     return std::sin(3 * M_PI * point.x / lx) * sin(2 * M_PI * point.y / ly) * sin(2 * M_PI * point.z / lz)
-           * cos(a_t * (double) t + 4 * M_PI);
+           * cos(a_t * (double) tau + 4 * M_PI);
 }
 
 double phi(
@@ -171,7 +171,7 @@ Grid<double> build_initial_prev_values_1(
 }
 
 Grid<double> build_initial_prev_values_2(
-        const Grid<Point> &points_grid,
+        double tau,
         const Grid<double> &curr_v,
         double hx, double hy, double hz,
         const int curr_block_dims[3]
@@ -183,7 +183,7 @@ Grid<double> build_initial_prev_values_2(
             std::vector<double> z_line_values;
             for (int k = 0; k < curr_block_dims[2]; k++) {
                 z_line_values.push_back(curr_v[i][j][k] +
-                                        0.5 * plain_laplassian(i, j, k, curr_v, curr_block_dims, hx, hy, hz));
+                                                (tau * tau) * 0.5 * plain_laplassian(i, j, k, curr_v, curr_block_dims, hx, hy, hz));
             }
             yz_plane_values.push_back(z_line_values);
         }
@@ -194,7 +194,7 @@ Grid<double> build_initial_prev_values_2(
 
 Grid<double> build_analytical_values(
         const Grid<Point> &points_grid,
-        int t,
+        double tau,
         double lx, double ly, double lz,
         double a_t,
         const int curr_block_dims[3]
@@ -208,7 +208,7 @@ Grid<double> build_analytical_values(
             std::vector<double> z_line_values;
             for (int k = 0; k < curr_block_dims[2]; k++) {
                 const auto &point = z_line[k];
-                z_line_values.push_back(u_analytical(point, t, lx, ly, lz, a_t));
+                z_line_values.push_back(u_analytical(point, tau, lx, ly, lz, a_t));
             }
             yz_plane_values.push_back(z_line_values);
         }
@@ -242,19 +242,25 @@ double get_diff(
 int main(int argc, char *argv[]) {
     // region init
     double lx, ly, lz;
+    double T;
     long n;
-    if (argc == 3) {
+    if (argc == 4) {
         lx = ly = lz = std::stod(argv[1]);
-        n = strtol(argv[2], nullptr, 10);
-    } else if (argc == 5) {
+        T = std::stod(argv[2]);
+        n = strtol(argv[3], nullptr, 10);
+    } else if (argc == 6) {
         lx = std::stod(argv[1]);
         ly = std::stod(argv[2]);
         lz = std::stod(argv[3]);
-        n = strtol(argv[4], nullptr, 10);
+        T = std::stod(argv[4]);
+        n = strtol(argv[5], nullptr, 10);
     } else {
-        std::cout << "Usage:" << std::endl << "\t./main Lx Ly Lz n" << std::endl << "\t./main L n" << std::endl;
+        std::cout << "Usage:" << std::endl << "\t./main Lx Ly Lz T n" << std::endl << "\t./main L n" << std::endl;
         return 0;
     }
+
+    double tau = ((double) T) / MAX_T;
+    std::cout << "tau = " << tau << std::endl;
 
     double hx = lx / (double) n;
     double hy = ly / (double) n;
@@ -306,7 +312,7 @@ int main(int argc, char *argv[]) {
         }
         if (t == 1) {
             values[1] = build_initial_prev_values_2(
-                    points_grid,
+                    tau,
                     values[0],
                     hx, hy, hz,
                     curr_block_dims
@@ -327,6 +333,7 @@ int main(int argc, char *argv[]) {
                 send_next_values_x[j * curr_block_dims[2] + k] = values[t - 1][curr_block_dims[0] - 1][j][k];
             }
         }
+
         int src_prev_rank, dest_prev_rank;
         MPI_Cart_shift(comm, 0, -1, &src_prev_rank, &dest_prev_rank);
         MPI_Sendrecv(
@@ -461,11 +468,12 @@ int main(int argc, char *argv[]) {
                 const auto &z_line = yz_plane[j];
                 std::vector<double> z_line_values;
                 for (int k = 0; k < curr_block_dims[2]; k++) {
+                    auto laplas = laplassian(i, j, k, values[t - 1], prev_values, next_values, curr_block_dims, hx, hy, hz);
                     z_line_values.push_back(
-                            (t * t) *
-                            laplassian(i, j, k, values[t - 1], prev_values, next_values, curr_block_dims, hx, hy, hz)
-                            + 2 * values[t - 2][i][j][k]
-                            - values[t - 1][i][j][k]
+                            (tau * tau) *
+                            laplas
+                            + 2 * values[t - 1][i][j][k]
+                            - values[t - 2][i][j][k]
                     );
                 }
                 yz_plane_values.push_back(z_line_values);
@@ -485,7 +493,7 @@ int main(int argc, char *argv[]) {
 
     std::vector<Grid<double> > analytical_values_vector(MAX_T + 1);
     for (int t = 0; t <= MAX_T; t++) {
-        analytical_values_vector[t] = build_analytical_values(points_grid, t, lx, ly, lz, a_t, curr_block_dims);
+        analytical_values_vector[t] = build_analytical_values(points_grid, tau * t, lx, ly, lz, a_t, curr_block_dims);
     }
 
     double diff = get_diff(values[MAX_T], analytical_values_vector[MAX_T]);
