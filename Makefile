@@ -11,7 +11,7 @@ build-mpi:
 	mpicxx ${TARGET} -o ${OUTPUT}
 
 run-mpi-128:
-	mpirun -n 8 ${OUTPUT} 1 0.00009 4
+	mpirun -n 1 ${OUTPUT} 1 0.00009 32
 
 run-mpi-256:
 	mpirun -n 8 ${OUTPUT} 1 0.00001 128

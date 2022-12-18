@@ -242,25 +242,22 @@ double get_diff(
 int main(int argc, char *argv[]) {
     // region init
     double lx, ly, lz;
-    double T;
+    double tau;
     long n;
     if (argc == 4) {
         lx = ly = lz = std::stod(argv[1]);
-        T = std::stod(argv[2]);
+        tau = std::stod(argv[2]);
         n = strtol(argv[3], nullptr, 10);
     } else if (argc == 6) {
         lx = std::stod(argv[1]);
         ly = std::stod(argv[2]);
         lz = std::stod(argv[3]);
-        T = std::stod(argv[4]);
+        tau = std::stod(argv[4]);
         n = strtol(argv[5], nullptr, 10);
     } else {
-        std::cout << "Usage:" << std::endl << "\t./main Lx Ly Lz T n" << std::endl << "\t./main L n" << std::endl;
+        std::cout << "Usage:" << std::endl << "\t./main Lx Ly Lz tau n" << std::endl << "\t./main L tau n" << std::endl;
         return 0;
     }
-
-    double tau = ((double) T) / MAX_T;
-    std::cout << "tau = " << tau << std::endl;
 
     double hx = lx / (double) n;
     double hy = ly / (double) n;
@@ -288,10 +285,6 @@ int main(int argc, char *argv[]) {
             curr_block_dims[i] += n % dims[i];
         }
     }
-    std::cout << "curr_block_dims = " << curr_block_dims[0] << " " << curr_block_dims[1] << " " << curr_block_dims[2]
-              << std::endl;
-
-    std::cout << "rank: " << rank << ", coords: " << coords[0] << ", " << coords[1] << ", " << coords[2] << std::endl;
 
     double a_t = M_PI * std::sqrt(9 / (lx * lx) + 4 / (ly * ly) + 4 / (lz * lz));
 
@@ -335,20 +328,24 @@ int main(int argc, char *argv[]) {
         }
 
         int src_prev_rank, dest_prev_rank;
-        MPI_Cart_shift(comm, 0, -1, &src_prev_rank, &dest_prev_rank);
-        MPI_Sendrecv(
-                send_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                rcv_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        if (coords[0] != 0) {
+            MPI_Cart_shift(comm, 0, -1, &src_prev_rank, &dest_prev_rank);
+            MPI_Sendrecv(
+                    send_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    rcv_prev_values_x, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
 
-        int src_next_rank, desc_next_rank;
-        MPI_Cart_shift(comm, 0, 1, &src_next_rank, &desc_next_rank);
-        MPI_Sendrecv(
-                send_next_values_x, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values_x, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        int src_next_rank, dest_next_rank;
+        if (coords[0] != curr_block_dims[0] - 1) {
+            MPI_Cart_shift(comm, 0, 1, &src_next_rank, &dest_next_rank);
+            MPI_Sendrecv(
+                    send_next_values_x, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    rcv_next_values_x, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
 
         // endregion send and receive x
 
@@ -366,19 +363,23 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        MPI_Cart_shift(comm, 1, -1, &src_prev_rank, &dest_prev_rank);
-        MPI_Sendrecv(
-                send_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                rcv_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        if (coords[1] != 0) {
+            MPI_Cart_shift(comm, 1, -1, &src_prev_rank, &dest_prev_rank);
+            MPI_Sendrecv(
+                    send_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    rcv_prev_values_y, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
 
-        MPI_Cart_shift(comm, 1, 1, &src_next_rank, &desc_next_rank);
-        MPI_Sendrecv(
-                send_next_values_y, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values_y, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        if (coords[1] != curr_block_dims[1] - 1) {
+            MPI_Cart_shift(comm, 1, 1, &src_next_rank, &dest_next_rank);
+            MPI_Sendrecv(
+                    send_next_values_y, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    rcv_next_values_y, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
         // endregion send and receive y
 
         // region send and receive z
@@ -395,19 +396,23 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        MPI_Cart_shift(comm, 2, -1, &src_prev_rank, &dest_prev_rank);
-        MPI_Sendrecv(
-                send_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                rcv_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        if (coords[2] != 0) {
+            MPI_Cart_shift(comm, 2, -1, &src_prev_rank, &dest_prev_rank);
+            MPI_Sendrecv(
+                    send_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    rcv_prev_values_z, max_number_of_values_x, MPI_DOUBLE, dest_prev_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
 
-        MPI_Cart_shift(comm, 2, 1, &src_next_rank, &desc_next_rank);
-        MPI_Sendrecv(
-                send_next_values_z, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                rcv_next_values_z, max_number_of_values_x, MPI_DOUBLE, desc_next_rank, 0,
-                comm, MPI_STATUS_IGNORE
-        );
+        if (coords[2] != curr_block_dims[2] - 1) {
+            MPI_Cart_shift(comm, 2, 1, &src_next_rank, &dest_next_rank);
+            MPI_Sendrecv(
+                    send_next_values_z, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    rcv_next_values_z, max_number_of_values_x, MPI_DOUBLE, dest_next_rank, 0,
+                    comm, MPI_STATUS_IGNORE
+            );
+        }
         // endregion send and receive z
 
         // region convert array to vector
@@ -429,32 +434,28 @@ int main(int argc, char *argv[]) {
 
         std::vector<std::vector<double> > prev_y_values, next_y_values;
         for (int i = 0; i < curr_block_dims[0]; i++) {
-            for (int j = 0; j < 3; j++) {
-                std::vector<double> prev_row;
-                std::vector<double> next_row;
-                for (int k = 0; k < curr_block_dims[2]; k++) {
-                    prev_row.push_back(rcv_prev_values_y[i * curr_block_dims[2] + k]);
-                    next_row.push_back(rcv_next_values_y[i * curr_block_dims[2] + k]);
-                }
-                prev_y_values.push_back(prev_row);
-                next_y_values.push_back(next_row);
+            std::vector<double> prev_row;
+            std::vector<double> next_row;
+            for (int k = 0; k < curr_block_dims[2]; k++) {
+                prev_row.push_back(rcv_prev_values_y[i * curr_block_dims[2] + k]);
+                next_row.push_back(rcv_next_values_y[i * curr_block_dims[2] + k]);
             }
+            prev_y_values.push_back(prev_row);
+            next_y_values.push_back(next_row);
         }
         prev_values.push_back(prev_y_values);
         next_values.push_back(next_y_values);
 
         std::vector<std::vector<double> > prev_z_values, next_z_values;
         for (int i = 0; i < curr_block_dims[0]; i++) {
+            std::vector<double> prev_row;
+            std::vector<double> next_row;
             for (int j = 0; j < curr_block_dims[1]; j++) {
-                std::vector<double> prev_row;
-                std::vector<double> next_row;
-                for (int k = 0; k < 3; k++) {
-                    prev_row.push_back(rcv_prev_values_z[i * curr_block_dims[1] + j]);
-                    next_row.push_back(rcv_next_values_z[i * curr_block_dims[1] + j]);
-                }
-                prev_z_values.push_back(prev_row);
-                next_z_values.push_back(next_row);
+                prev_row.push_back(rcv_prev_values_z[i * curr_block_dims[1] + j]);
+                next_row.push_back(rcv_next_values_z[i * curr_block_dims[1] + j]);
             }
+            prev_z_values.push_back(prev_row);
+            next_z_values.push_back(next_row);
         }
         prev_values.push_back(prev_z_values);
         next_values.push_back(next_z_values);
