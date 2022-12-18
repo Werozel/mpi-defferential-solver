@@ -32,13 +32,13 @@ run-mpi-512:
 	mpisubmit.pl -p ${n_proc} ${OUTPUT_MPI} 1 0.00001 512
 
 run-mpi-omp-128:
-	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 128
+	mpisubmit.pl -p ${n_proc} -t 4 ${OUTPUT_MPI_OMP} 1 0.00001 128
 
 run-mpi-omp-256:
-	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 256
+	mpisubmit.pl -p ${n_proc} -t 4 ${OUTPUT_MPI_OMP} 1 0.00001 256
 
 run-mpi-omp-512:
-	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 512
+	mpisubmit.pl -p ${n_proc} -t 4 ${OUTPUT_MPI_OMP} 1 0.00001 512
 
 clean:
 	rm -f *.o
