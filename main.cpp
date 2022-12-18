@@ -80,8 +80,8 @@ double u_analytical(
         double lx, double ly, double lz,
         double a_t
 ) {
-    return std::sin(3 * M_PI * point.x / lx) * sin(2 * M_PI * point.y / ly) * sin(2 * M_PI * point.z / lz)
-           * cos(a_t * (double) tau + 4 * M_PI);
+    return std::sin(3 * M_PI * point.x / lx) * std::sin(2 * M_PI * point.y / ly) * std::sin(2 * M_PI * point.z / lz)
+           * std::cos(a_t * tau + 4 * M_PI);
 }
 
 double phi(
@@ -322,10 +322,10 @@ int main(int argc, char *argv[]) {
 
         // region send and receive x
         long long max_number_of_values_x = curr_block_dims[1] * curr_block_dims[2];
-        double *send_prev_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
-        double *send_next_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
-        double *rcv_prev_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
-        double *rcv_next_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));;
+        auto *send_prev_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
+        auto *send_next_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
+        auto *rcv_prev_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
+        auto *rcv_next_values_x = (double *) calloc(max_number_of_values_x, sizeof(double));
 
         for (int j = 0; j < curr_block_dims[1]; j++) {
             for (int k = 0; k < curr_block_dims[2]; k++) {
@@ -354,10 +354,10 @@ int main(int argc, char *argv[]) {
 
         // region send and receive y
         long long max_number_of_values_y = curr_block_dims[0] * curr_block_dims[2];
-        double *send_prev_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
-        double *send_next_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
-        double *rcv_prev_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
-        double *rcv_next_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));;
+        auto *send_prev_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
+        auto *send_next_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
+        auto *rcv_prev_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
+        auto *rcv_next_values_y = (double *) calloc(max_number_of_values_y, sizeof(double));
 
         for (int i = 0; i < curr_block_dims[0]; i++) {
             for (int k = 0; k < curr_block_dims[2]; k++) {
@@ -383,10 +383,10 @@ int main(int argc, char *argv[]) {
 
         // region send and receive z
         long long max_number_of_values_z = curr_block_dims[0] * curr_block_dims[1];
-        double *send_prev_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
-        double *send_next_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
-        double *rcv_prev_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
-        double *rcv_next_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));;
+        auto *send_prev_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
+        auto *send_next_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
+        auto *rcv_prev_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
+        auto *rcv_next_values_z = (double *) calloc(max_number_of_values_z, sizeof(double));
 
         for (int i = 0; i < curr_block_dims[0]; i++) {
             for (int j = 0; j < curr_block_dims[1]; j++) {
