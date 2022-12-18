@@ -309,6 +309,7 @@ int main(int argc, char *argv[]) {
     std::vector<Grid<double> > values(MAX_T + 1);
 
     for (int t = 0; t <= MAX_T; t++) {
+        // region calculate init values
         if (t == 0) {
             values[0] = build_initial_prev_values_1(points_grid, lx, ly, lz, a_t, curr_block_dims);
             continue;
@@ -322,6 +323,7 @@ int main(int argc, char *argv[]) {
             );
             continue;
         }
+        // endregion calculate init values
 
         // region send and receive x
         long long max_number_of_values_x = curr_block_dims[1] * curr_block_dims[2];
@@ -471,6 +473,7 @@ int main(int argc, char *argv[]) {
         next_values.push_back(next_z_values);
         // endregion convert array to vector
 
+        // region calculate new values
         Grid<double> result;
 #pragma omp parallel for shared(result)
         for (int i = 0; i < curr_block_dims[0]; i++) {
@@ -494,6 +497,7 @@ int main(int argc, char *argv[]) {
         }
 
         values[t] = result;
+        // endregion calculate new values
     }
 
     double end_time = MPI_Wtime() - start_time;
@@ -503,6 +507,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Time: " << max_time << std::endl;
     }
 
+    // region results
     std::vector<Grid<double> > analytical_values_vector(MAX_T + 1);
     for (int t = 0; t <= MAX_T; t++) {
         analytical_values_vector[t] = build_analytical_values(points_grid, tau * t, lx, ly, lz, a_t, curr_block_dims);
@@ -515,6 +520,7 @@ int main(int argc, char *argv[]) {
     if (!rank) {
         std::cout << "Diff: " << max_diff << std::endl;
     }
+    // endregion results
 
     MPI_Finalize();
 
