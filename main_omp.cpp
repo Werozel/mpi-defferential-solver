@@ -153,7 +153,7 @@ Grid<double> build_initial_prev_values_1(
         const int curr_block_dims[3]
 ) {
     Grid<double> result;
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for
     for (int i = 0; i < curr_block_dims[0]; i++) {
         const auto& yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
@@ -178,7 +178,7 @@ Grid<double> build_initial_prev_values_2(
         const int curr_block_dims[3]
 ) {
     Grid<double> result;
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for
     for (int i = 0; i < curr_block_dims[0]; i++) {
         std::vector<std::vector<double> > yz_plane_values;
         for (int j = 0; j < curr_block_dims[1]; j++) {
@@ -202,7 +202,7 @@ Grid<double> build_analytical_values(
         const int curr_block_dims[3]
 ) {
     Grid<double> result;
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for
     for (int i = 0; i < curr_block_dims[0]; i++) {
         const auto &yz_plane = points_grid[i];
         std::vector<std::vector<double> > yz_plane_values;
@@ -226,7 +226,7 @@ double get_diff(
 ) {
     double result = 0;
     int count = 0;
-#pragma omp parallel for collapse(3) reduction(+:result, count)
+#pragma omp parallel for reduction(+:result, count)
     for (int i = 0; i < values_1.size(); i++) {
         const auto &yz_plane_1 = values_1[i];
         const auto &yz_plane_2 = values_2[i];
@@ -466,7 +466,7 @@ int main(int argc, char *argv[]) {
         // endregion convert array to vector
 
         Grid<double> result;
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for
         for (int i = 0; i < curr_block_dims[0]; i++) {
             const auto &yz_plane = points_grid[i];
             std::vector<std::vector<double> > yz_plane_values;
