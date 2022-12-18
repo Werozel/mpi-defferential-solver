@@ -1,23 +1,44 @@
 
-TARGET = main.cpp
-OUTPUT = main.o
+TARGET_MPI = main.cpp
+TARGET_MPI_OMP = main_omp.cpp
+OUTPUT_MPI = main-mpi.o
+OUTPUT_MPI_OMP = main-mpi-omp.o
 
 STDLIB_FLAG = -stdlib=libc++
-
-build:
-	g++ ${TARGET} -std=c++11 -o ${OUTPUT}
+C11_FLAG = -std=c++11
 
 build-mpi:
-	mpicxx ${TARGET} -o ${OUTPUT}
+	mpicxx ${TARGET_MPI} ${C11_FLAG} -o ${OUTPUT_MPI}
+
+build-mpi-omp:
+	mpicxx ${TARGET_MPI_OMP} ${C11_FLAG} -qthreaded -qsmp=omp -o ${OUTPUT_MPI_OMP}
+
+run-mpi-local-128:
+	mpirun -n ${n_proc} ${OUTPUT_MPI} 1 0.00001 128
+
+run-mpi-local-256:
+	mpirun -n ${n_proc} ${OUTPUT_MPI} 1 0.00001 256
+
+run-mpi-local-512:
+	mpirun -n ${n_proc} ${OUTPUT_MPI} 1 0.00001 512
 
 run-mpi-128:
-	mpirun -n 1 ${OUTPUT} 1 0.00009 32
+	mpisubmit.pl -p ${n_proc} ${OUTPUT_MPI} 1 0.00001 128
 
 run-mpi-256:
-	mpirun -n 8 ${OUTPUT} 1 0.00001 128
+	mpisubmit.pl -p ${n_proc} ${OUTPUT_MPI} 1 0.00001 256
 
-run:
-	./main 12 12 12 4
+run-mpi-512:
+	mpisubmit.pl -p ${n_proc} ${OUTPUT_MPI} 1 0.00001 512
+
+run-mpi-omp-128:
+	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 128
+
+run-mpi-omp-256:
+	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 256
+
+run-mpi-omp-512:
+	mpisubmit.pl -p ${n_proc} -t ${OUTPUT_MPI_OMP} 1 0.00001 512
 
 clean:
-	rm -f ${OUTPUT}
+	rm -f *.o
