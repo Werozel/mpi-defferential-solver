@@ -6,4 +6,4 @@ set(CMAKE_CXX_STANDARD 14)
 include_directories(.)
 
 add_executable(mpi_defferential_solver
-        main.cpp)
+        main.cpp main_omp.cpp)
