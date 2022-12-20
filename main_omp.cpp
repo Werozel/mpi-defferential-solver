@@ -466,7 +466,7 @@ int main(int argc, char *argv[]) {
 
         // region calculate new values
         double result_arr[curr_block_dims[0]][curr_block_dims[1]][curr_block_dims[2]];
-#pragma omp parallel for shared(result) collapse(3)
+#pragma omp parallel for shared(result_arr) collapse(3)
         for (int i = 0; i < curr_block_dims[0]; i++) {
             for (int j = 0; j < curr_block_dims[1]; j++) {
                 for (int k = 0; k < curr_block_dims[2]; k++) {
